@@ -1,4 +1,4 @@
-const CACHE = 'rr-es-v1';
+const CACHE = 'rr-es-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -21,6 +21,15 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+
+  // Não interceptar rotas de admin, API ou vendas
+  if (url.pathname.startsWith('/api/') ||
+      url.pathname === '/admin.html' ||
+      url.pathname === '/vendas.html') {
+    return;
+  }
+
   if (e.request.url.startsWith('https://fonts')) {
     e.respondWith(
       caches.open(CACHE).then(c =>
