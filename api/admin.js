@@ -1,0 +1,312 @@
+const { createClient } = require('@supabase/supabase-js')
+
+const HTML = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin · Respira y Recomienza</title>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Cormorant+Garamond:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Jost',sans-serif; background:#F7F3ED; color:#1A1A1A; -webkit-font-smoothing:antialiased; }
+    :root {
+      --green:#2C4A32; --green-dark:#1E3325; --green-light:#3D6B48;
+      --gold:#C9A96E; --gold-pale:#F5EDD8;
+      --cream:#F7F3ED; --cream-dark:#EDE8DF;
+      --text:#1A1A1A; --text-mid:#4A4A4A; --text-light:#8A8A8A;
+    }
+    #login-screen {
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:linear-gradient(160deg,#1E3325,#2C4A32,#3D6B48);
+    }
+    .login-card {
+      background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.14);
+      border-radius:20px; padding:40px 36px; width:100%; max-width:380px; text-align:center;
+    }
+    .login-title { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:300; color:#F7F3ED; margin-bottom:6px; }
+    .login-sub { font-size:11px; letter-spacing:2px; color:rgba(201,169,110,.6); text-transform:uppercase; margin-bottom:28px; }
+    .login-input {
+      width:100%; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2);
+      border-radius:11px; padding:14px 18px; font-size:16px; font-family:'Jost',sans-serif;
+      color:#F7F3ED; text-align:center; letter-spacing:2px; outline:none; margin-bottom:12px;
+    }
+    .login-input:focus { border-color:#C9A96E; }
+    .login-btn {
+      width:100%; background:#C9A96E; color:#2C4A32; border:none; border-radius:12px;
+      padding:15px; font-family:'Jost',sans-serif; font-size:13px; font-weight:600;
+      letter-spacing:2px; text-transform:uppercase; cursor:pointer;
+    }
+    .login-btn:disabled { opacity:.6; }
+    .login-error { color:#FFB3B3; font-size:12px; margin-top:10px; display:none; }
+    #dashboard { display:none; }
+    .top-bar {
+      background:var(--green-dark); padding:16px 32px;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .top-bar-brand { font-family:'Cormorant Garamond',serif; font-size:20px; font-weight:300; color:#F7F3ED; letter-spacing:3px; }
+    .top-bar-tag { font-size:10px; letter-spacing:2px; color:rgba(201,169,110,.6); text-transform:uppercase; }
+    .top-bar-right { display:flex; align-items:center; gap:16px; }
+    .refresh-btn {
+      background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:8px;
+      padding:7px 14px; font-family:'Jost',sans-serif; font-size:12px; color:#F7F3ED;
+      cursor:pointer; letter-spacing:1px;
+    }
+    .logout-btn {
+      background:transparent; border:none; font-family:'Jost',sans-serif; font-size:12px;
+      color:rgba(247,243,237,.4); cursor:pointer; letter-spacing:1px;
+    }
+    .main { max-width:1200px; margin:0 auto; padding:32px 24px; }
+    .metrics-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:28px; }
+    .metric-card {
+      background:#fff; border-radius:16px; padding:22px 20px;
+      box-shadow:0 2px 12px rgba(44,74,50,.06); text-align:center;
+    }
+    .metric-num { font-size:40px; font-weight:600; color:var(--green); line-height:1; margin-bottom:6px; }
+    .metric-num.gold { color:var(--gold); }
+    .metric-label { font-size:11px; letter-spacing:1.5px; color:var(--text-light); text-transform:uppercase; }
+    .filters-row { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+    .filter-input {
+      background:#fff; border:1px solid var(--cream-dark); border-radius:10px;
+      padding:10px 16px; font-family:'Jost',sans-serif; font-size:13px; color:var(--text);
+      outline:none; min-width:220px;
+    }
+    .filter-input:focus { border-color:var(--green); }
+    .filter-select {
+      background:#fff; border:1px solid var(--cream-dark); border-radius:10px;
+      padding:10px 14px; font-family:'Jost',sans-serif; font-size:13px; color:var(--text);
+      outline:none; cursor:pointer;
+    }
+    .filter-count { font-size:13px; color:var(--text-light); margin-left:auto; }
+    .table-wrap { background:#fff; border-radius:16px; box-shadow:0 2px 12px rgba(44,74,50,.06); overflow:hidden; }
+    table { width:100%; border-collapse:collapse; }
+    thead { background:var(--green-dark); }
+    th {
+      padding:14px 18px; font-size:10px; font-weight:600; letter-spacing:2px;
+      color:rgba(247,243,237,.6); text-transform:uppercase; text-align:left;
+    }
+    td { padding:14px 18px; font-size:13px; color:var(--text-mid); border-bottom:1px solid var(--cream-dark); }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#fafaf8; }
+    .badge {
+      display:inline-block; border-radius:20px; padding:3px 10px;
+      font-size:10px; font-weight:600; letter-spacing:1px; text-transform:uppercase;
+    }
+    .badge-active { background:#E8F5E9; color:#2C4A32; }
+    .badge-inactive { background:#FFEBEE; color:#C62828; }
+    .prog-bar-wrap { width:90px; background:var(--cream-dark); border-radius:6px; height:6px; display:inline-block; vertical-align:middle; margin-right:6px; }
+    .prog-bar-fill { height:6px; border-radius:6px; background:linear-gradient(90deg,var(--green),var(--gold)); }
+    .token-code { font-family:'Courier New',monospace; font-size:13px; font-weight:700; letter-spacing:2px; color:var(--green); }
+    .empty-row td { text-align:center; padding:40px; color:var(--text-light); }
+    .loading { text-align:center; padding:60px; color:var(--text-light); font-size:14px; }
+    .create-section {
+      background:#fff; border-radius:16px; padding:24px; margin-bottom:24px;
+      box-shadow:0 2px 12px rgba(44,74,50,.06);
+    }
+    .section-title { font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--text-light); margin-bottom:16px; }
+    .create-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .email-input {
+      background:var(--cream); border:1px solid var(--cream-dark); border-radius:10px;
+      padding:10px 16px; font-family:'Jost',sans-serif; font-size:13px; color:var(--text);
+      outline:none; flex:1; min-width:200px;
+    }
+    .email-input:focus { border-color:var(--green); }
+    .create-btn {
+      background:var(--green); color:#F7F3ED; border:none; border-radius:10px;
+      padding:10px 20px; font-family:'Jost',sans-serif; font-size:12px; font-weight:600;
+      letter-spacing:1.5px; text-transform:uppercase; cursor:pointer;
+    }
+    .create-btn:disabled { opacity:.5; }
+    .token-result {
+      font-family:'Courier New',monospace; font-size:14px; font-weight:700;
+      letter-spacing:3px; color:var(--green); background:var(--gold-pale);
+      border-radius:8px; padding:8px 16px; display:none;
+    }
+    .token-msg { font-size:12px; color:var(--text-light); margin-top:8px; display:none; }
+    @media (max-width:768px) {
+      .top-bar { padding:14px 18px; }
+      .main { padding:20px 14px; }
+      th, td { padding:12px 12px; font-size:12px; }
+      .prog-bar-wrap { display:none; }
+    }
+  </style>
+</head>
+<body>
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-title">Panel Admin</div>
+    <div class="login-sub">Respira y Recomienza</div>
+    <input class="login-input" id="pwdInput" type="password" placeholder="Contraseña de acceso" autocomplete="off">
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">ENTRAR</button>
+    <div class="login-error" id="loginError">Contraseña incorrecta.</div>
+  </div>
+</div>
+<div id="dashboard">
+  <div class="top-bar">
+    <div>
+      <div class="top-bar-brand">RESPIRA Y RECOMIENZA</div>
+      <div class="top-bar-tag">Panel Administrativo</div>
+    </div>
+    <div class="top-bar-right">
+      <button class="refresh-btn" onclick="loadData()">↻ Actualizar</button>
+      <button class="logout-btn" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="metrics-grid">
+      <div class="metric-card"><div class="metric-num" id="mTotal">—</div><div class="metric-label">Total de alumnas</div></div>
+      <div class="metric-card"><div class="metric-num gold" id="mActive">—</div><div class="metric-label">Accesos activos</div></div>
+      <div class="metric-card"><div class="metric-num" id="mProgress">—</div><div class="metric-label">Con progreso</div></div>
+      <div class="metric-card"><div class="metric-num gold" id="mCompleted">—</div><div class="metric-label">Completaron 21 días</div></div>
+      <div class="metric-card"><div class="metric-num" id="mAvg">—</div><div class="metric-label">Media de días</div></div>
+    </div>
+    <div class="create-section">
+      <div class="section-title">Crear token manualmente</div>
+      <div class="create-row">
+        <input class="email-input" id="emailInput" type="email" placeholder="correo@ejemplo.com">
+        <button class="create-btn" id="createBtn" onclick="createToken()">+ Crear token</button>
+        <span class="token-result" id="tokenResult"></span>
+      </div>
+      <div class="token-msg" id="tokenMsg"></div>
+    </div>
+    <div class="filters-row">
+      <input class="filter-input" id="searchInput" type="text" placeholder="Buscar por email o token…" oninput="renderTable()">
+      <select class="filter-select" id="statusFilter" onchange="renderTable()">
+        <option value="all">Todas</option>
+        <option value="active">Activas</option>
+        <option value="inactive">Inactivas</option>
+        <option value="progress">Con progreso</option>
+        <option value="done">21 días completos</option>
+      </select>
+      <div class="filter-count" id="filterCount"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Email</th><th>Token</th><th>Estado</th><th>Progreso</th><th>Racha</th><th>Último acceso</th><th>Registro</th></tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="7" class="loading">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+  let adminPwd = '', allUsers = []
+  document.getElementById('pwdInput').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin() })
+
+  async function doLogin() {
+    const pwd = document.getElementById('pwdInput').value.trim()
+    const btn = document.getElementById('loginBtn'), err = document.getElementById('loginError')
+    if (!pwd) return
+    btn.textContent = 'VERIFICANDO…'; btn.disabled = true; err.style.display = 'none'
+    try {
+      const res = await fetch('/api/admin-stats', { headers: { 'x-admin-password': pwd } })
+      if (res.status === 401) { err.textContent = 'Contraseña incorrecta.'; err.style.display = 'block'; btn.textContent = 'ENTRAR'; btn.disabled = false; return }
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch(pe) {
+        err.textContent = 'Error ' + res.status + ': ' + text.slice(0,120)
+        err.style.display = 'block'; btn.textContent = 'ENTRAR'; btn.disabled = false; return
+      }
+      adminPwd = pwd; sessionStorage.setItem('adm_es', pwd)
+      renderDashboard(data)
+    } catch(e) {
+      err.textContent = 'Error de red: ' + e.message; err.style.display = 'block'
+      btn.textContent = 'ENTRAR'; btn.disabled = false
+    }
+  }
+
+  async function loadData() {
+    try {
+      const res = await fetch('/api/admin-stats', { headers: { 'x-admin-password': adminPwd } })
+      if (res.ok) renderDashboard(await res.json())
+    } catch(e) {}
+  }
+
+  async function createToken() {
+    const email = document.getElementById('emailInput').value.trim()
+    const btn = document.getElementById('createBtn'), result = document.getElementById('tokenResult'), msg = document.getElementById('tokenMsg')
+    if (!email) return
+    btn.disabled = true; btn.textContent = 'CREANDO…'; result.style.display = 'none'; msg.style.display = 'none'
+    try {
+      const res = await fetch('/api/create-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': adminPwd },
+        body: JSON.stringify({ email })
+      })
+      const data = await res.json()
+      if (data.token) {
+        result.textContent = data.token; result.style.display = 'inline-block'
+        msg.textContent = 'Token creado para ' + email; msg.style.color = '#2C4A32'; msg.style.display = 'block'
+        document.getElementById('emailInput').value = ''
+        setTimeout(loadData, 800)
+      } else {
+        msg.textContent = data.error || 'Error al crear token.'; msg.style.color = '#C62828'; msg.style.display = 'block'
+      }
+    } catch(e) { msg.textContent = 'Error de conexión.'; msg.style.color = '#C62828'; msg.style.display = 'block' }
+    btn.disabled = false; btn.textContent = '+ Crear token'
+  }
+
+  function renderDashboard(data) {
+    document.getElementById('login-screen').style.display = 'none'
+    document.getElementById('dashboard').style.display = 'block'
+    const m = data.metrics
+    document.getElementById('mTotal').textContent = m.totalTokens
+    document.getElementById('mActive').textContent = m.activeTokens
+    document.getElementById('mProgress').textContent = m.withProgress
+    document.getElementById('mCompleted').textContent = m.completed21
+    document.getElementById('mAvg').textContent = m.avgDays + ' días'
+    allUsers = data.users; renderTable()
+  }
+
+  function renderTable() {
+    const search = document.getElementById('searchInput').value.toLowerCase()
+    const status = document.getElementById('statusFilter').value
+    const filtered = allUsers.filter(u => {
+      const ms = !search || u.email?.toLowerCase().includes(search) || u.token?.toLowerCase().includes(search)
+      const mv = status==='all'||( status==='active'&&u.active)||(status==='inactive'&&!u.active)||(status==='progress'&&u.hasProgress)||(status==='done'&&u.completedDays===21)
+      return ms && mv
+    })
+    document.getElementById('filterCount').textContent = filtered.length + ' de ' + allUsers.length + ' alumnas'
+    const tbody = document.getElementById('tableBody')
+    if (!filtered.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Ninguna alumna encontrada.</td></tr>'; return }
+    tbody.innerHTML = filtered.map(u => \`
+      <tr>
+        <td>\${u.email||'—'}</td>
+        <td><span class="token-code">\${u.token}</span></td>
+        <td><span class="badge \${u.active?'badge-active':'badge-inactive'}">\${u.active?'Activa':'Inactiva'}</span></td>
+        <td><div class="prog-bar-wrap"><div class="prog-bar-fill" style="width:\${u.pct}%"></div></div>\${u.completedDays}/21 días · \${u.pct}%</td>
+        <td>\${u.streak} día\${u.streak!==1?'s':''}</td>
+        <td>\${u.lastOpened?fmt(u.lastOpened):'—'}</td>
+        <td>\${u.created_at?fmt(u.created_at):'—'}</td>
+      </tr>\`).join('')
+  }
+
+  function fmt(iso) {
+    const d = new Date(iso)
+    return d.toLocaleDateString('es-ES') + ' ' + d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})
+  }
+
+  function doLogout() {
+    adminPwd = ''; sessionStorage.removeItem('adm_es')
+    document.getElementById('login-screen').style.display = 'flex'
+    document.getElementById('dashboard').style.display = 'none'
+    document.getElementById('pwdInput').value = ''
+    document.getElementById('loginBtn').textContent = 'ENTRAR'
+    document.getElementById('loginBtn').disabled = false
+  }
+
+  const saved = sessionStorage.getItem('adm_es')
+  if (saved) { adminPwd = saved; fetch('/api/admin-stats',{headers:{'x-admin-password':saved}}).then(r=>r.ok?r.json():null).then(d=>{if(d)renderDashboard(d)}).catch(()=>{}) }
+  setInterval(()=>{ if(adminPwd) loadData() }, 60000)
+</script>
+</body>
+</html>`
+
+module.exports = async function handler(req, res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-store')
+  return res.status(200).send(HTML)
+}
